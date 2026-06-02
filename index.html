@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Budgeting</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <main class="app-shell">
+        <section class="panel header-panel">
+            <div>
+                <p class="eyebrow">Budgeting Spreadsheet</p>
+                <h1>Input Transaksi</h1>
+            </div>
+            <div class="status-pill" id="connectionStatus">Endpoint siap</div>
+        </section>
+
+        <section class="panel">
+            <form id="transactionForm" class="transaction-form">
+                <div class="form-row">
+                    <label for="type">Jenis</label>
+                    <select id="type" name="type" required>
+                        <option value="Pengeluaran">Pengeluaran</option>
+                        <option value="Pendapatan">Pendapatan</option>
+                        <option value="Tabungan">Tabungan</option>
+                        <option value="Tagihan">Tagihan</option>
+                        <option value="Pembayaran Utang">Pembayaran Utang</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label for="category">Kategori</label>
+                    <input id="category" name="category" list="categoryList" placeholder="Contoh: Makanan" required>
+                    <datalist id="categoryList"></datalist>
+                </div>
+
+                <div class="form-row">
+                    <label for="amount">Nominal</label>
+                    <input id="amount" name="amount" inputmode="numeric" placeholder="Contoh: 42000" required>
+                </div>
+
+                <div class="form-row">
+                    <label for="note">Keterangan</label>
+                    <textarea id="note" name="note" rows="3" placeholder="Opsional"></textarea>
+                </div>
+
+                <div class="button-row">
+                    <button type="submit" class="primary-button" id="submitButton">Simpan Transaksi</button>
+                    <button type="button" class="secondary-button" id="clearButton">Bersihkan</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel help-panel">
+            <h2>Format Telegram</h2>
+            <div class="example-box">
+                <code>pengeluaran | Makanan | 42000 | Soto</code>
+                <code>pendapatan<br>Gaji<br>7500000<br>Gaji bulanan</code>
+            </div>
+        </section>
+
+        <section class="panel log-panel" id="logPanel" hidden>
+            <h2>Aktivitas</h2>
+            <div id="logList"></div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
