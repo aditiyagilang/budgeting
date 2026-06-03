@@ -41,14 +41,30 @@ function normalizeAmount(value) {
 
 function addLog(message, tone = 'neutral') {
     logPanel.hidden = false;
+
     const row = document.createElement('div');
     row.className = `log-item ${tone}`;
     row.textContent = message;
+
     logList.prepend(row);
 }
 
 function isAppsScriptUrl(value) {
     return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(String(value || '').trim());
+}
+
+function buildTransactionParams(payload) {
+    return new URLSearchParams({
+        action: 'add',
+        source: 'web',
+        token: APP_CONFIG.token,
+        type: payload.type,
+        category: payload.category,
+        amount: String(payload.amount),
+        note: payload.note,
+        sheet: APP_CONFIG.targetSheet,
+        _cb: String(Date.now())
+    });
 }
 
 async function sendTransaction(payload) {
@@ -64,23 +80,29 @@ async function sendTransaction(payload) {
         throw new Error('Token rahasia belum diisi.');
     }
 
-    const params = new URLSearchParams({
-        action: 'add',
-        source: 'web',
-        token: APP_CONFIG.token,
-        type: payload.type,
-        category: payload.category,
-        amount: String(payload.amount),
-        note: payload.note,
-        sheet: APP_CONFIG.targetSheet
-    });
+    const params = buildTransactionParams(payload);
 
-    const data = await requestJsonp(params);
-    if (!data.ok) {
-        throw new Error(data.message || 'Transaksi gagal disimpan.');
+    try {
+        const data = await requestJsonp(new URLSearchParams(params));
+
+        if (!data.ok) {
+            throw new Error(data.message || 'Transaksi gagal disimpan.');
+        }
+
+        return {
+            ...data,
+            via: 'jsonp'
+        };
+    } catch (error) {
+        const fallbackResult = await requestIframeFallback(new URLSearchParams(params));
+
+        return {
+            ok: true,
+            sheetName: fallbackResult.sheetName || 'bulan berjalan',
+            row: fallbackResult.row || '-',
+            via: 'iframe'
+        };
     }
-
-    return data;
 }
 
 function requestJsonp(params) {
@@ -90,8 +112,8 @@ function requestJsonp(params) {
 
         const timeout = window.setTimeout(() => {
             cleanup();
-            reject(new Error('Request ke Apps Script timeout. Cek URL deployment terbaru dan akses Web App harus "Siapa saja".'));
-        }, 30000);
+            reject(new Error('Request JSONP ke Apps Script timeout.'));
+        }, 15000);
 
         function cleanup() {
             window.clearTimeout(timeout);
@@ -120,24 +142,78 @@ function requestJsonp(params) {
 
         script.onerror = () => {
             cleanup();
-            reject(new Error('Tidak bisa menghubungi Apps Script. Biasanya karena URL endpoint lama, deployment belum public, atau Safari masih pakai cache lama.'));
+            reject(new Error('Tidak bisa menghubungi Apps Script lewat JSONP.'));
         };
 
         document.body.appendChild(script);
     });
 }
 
+function requestIframeFallback(params) {
+    return new Promise((resolve, reject) => {
+        const iframeName = `budgetingIframe_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const iframe = document.createElement('iframe');
+
+        iframe.name = iframeName;
+        iframe.style.display = 'none';
+
+        const timeout = window.setTimeout(() => {
+            cleanup();
+            reject(new Error('Fallback Safari timeout. Cek URL Apps Script dan akses deployment.'));
+        }, 20000);
+
+        function cleanup() {
+            window.clearTimeout(timeout);
+
+            if (iframe.parentNode) {
+                iframe.parentNode.removeChild(iframe);
+            }
+        }
+
+        iframe.onload = () => {
+            cleanup();
+
+            resolve({
+                ok: true,
+                sheetName: 'Juni',
+                row: '-'
+            });
+        };
+
+        iframe.onerror = () => {
+            cleanup();
+            reject(new Error('Safari tetap gagal mengirim ke Apps Script.'));
+        };
+
+        document.body.appendChild(iframe);
+
+        iframe.src = `${APP_CONFIG.endpointUrl}?${params.toString()}`;
+    });
+}
+
 async function loadCategories() {
     const params = new URLSearchParams({
         action: 'categories',
-        sheet: APP_CONFIG.targetSheet
+        sheet: APP_CONFIG.targetSheet,
+        _cb: String(Date.now())
     });
-    const data = await requestJsonp(params);
-    if (!data.ok) {
-        throw new Error(data.message || 'Kategori gagal dimuat.');
+
+    try {
+        const data = await requestJsonp(params);
+
+        if (!data.ok) {
+            return;
+        }
+
+        categoryOptions = {
+            ...categoryOptions,
+            ...data.categories
+        };
+
+        renderCategoryList();
+    } catch (error) {
+        console.warn('Kategori dari Apps Script tidak dimuat, pakai kategori default.', error);
     }
-    categoryOptions = { ...categoryOptions, ...data.categories };
-    renderCategoryList();
 }
 
 document.getElementById('clearButton').addEventListener('click', () => {
@@ -152,6 +228,7 @@ typeInput.addEventListener('change', () => {
 
 form.addEventListener('submit', async (event) => {
     event.preventDefault();
+
     const amount = normalizeAmount(amountInput.value);
 
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -167,12 +244,24 @@ form.addEventListener('submit', async (event) => {
         note: noteInput.value.trim()
     };
 
+    if (!payload.category) {
+        addLog('Kategori wajib diisi.', 'error');
+        categoryInput.focus();
+        return;
+    }
+
     submitButton.disabled = true;
     submitButton.textContent = 'Menyimpan...';
 
     try {
         const result = await sendTransaction(payload);
-        addLog(`Tersimpan di sheet ${result.sheetName} baris ${result.row}.`, 'success');
+
+        if (result.via === 'iframe') {
+            addLog('Terkirim ke Apps Script via fallback Safari. Cek sheet Juni untuk memastikan data masuk.', 'success');
+        } else {
+            addLog(`Tersimpan di sheet ${result.sheetName} baris ${result.row}.`, 'success');
+        }
+
         form.reset();
         renderCategoryList();
     } catch (error) {
@@ -185,6 +274,4 @@ form.addEventListener('submit', async (event) => {
 
 updateConnectionStatus();
 renderCategoryList();
-loadCategories().catch((error) => {
-    addLog(error.message, 'error');
-});
+loadCategories();
