@@ -1,5 +1,5 @@
 const APP_CONFIG = {
-    endpointUrl: 'https://script.google.com/macros/s/AKfycbxMcv-Eqek9d8FYCMSJZ-TS-vCRP-wM9q1L9Owze8d7lvY4oxEcDBMGDjBaAu3-mw2g6A/exec',
+    endpointUrl: 'https://script.google.com/macros/s/AKfycbyJ3sbWhtzoI9GTjV4AsUbCMyI2J_BshMTBFPLj7OU4tIJTGqn94MilcqypgTFpU8fb5Q/exec',
     token: '1Ke5JjAZ7jsnYXR07bt13WyTe9zGTBRxa9A-iMnJSf0k',
     targetSheet: ''
 };
