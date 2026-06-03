@@ -87,15 +87,24 @@ function requestJsonp(params) {
     return new Promise((resolve, reject) => {
         const callbackName = `budgetingCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const script = document.createElement('script');
+
         const timeout = window.setTimeout(() => {
             cleanup();
-            reject(new Error('Request ke Apps Script timeout.'));
-        }, 15000);
+            reject(new Error('Request ke Apps Script timeout. Cek URL deployment terbaru dan akses Web App harus "Siapa saja".'));
+        }, 30000);
 
         function cleanup() {
             window.clearTimeout(timeout);
-            delete window[callbackName];
-            script.remove();
+
+            try {
+                delete window[callbackName];
+            } catch (error) {
+                window[callbackName] = undefined;
+            }
+
+            if (script.parentNode) {
+                script.parentNode.removeChild(script);
+            }
         }
 
         window[callbackName] = (data) => {
@@ -104,11 +113,16 @@ function requestJsonp(params) {
         };
 
         params.set('callback', callbackName);
+        params.set('_cb', String(Date.now()));
+
+        script.async = true;
         script.src = `${APP_CONFIG.endpointUrl}?${params.toString()}`;
+
         script.onerror = () => {
             cleanup();
-            reject(new Error('Tidak bisa menghubungi Apps Script.'));
+            reject(new Error('Tidak bisa menghubungi Apps Script. Biasanya karena URL endpoint lama, deployment belum public, atau Safari masih pakai cache lama.'));
         };
+
         document.body.appendChild(script);
     });
 }
